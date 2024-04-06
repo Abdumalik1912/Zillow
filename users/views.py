@@ -1,98 +1,109 @@
-from django.contrib import messages
-from django.contrib.auth import authenticate, login
-from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponseRedirect
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views import View
-
+from django.contrib import messages
 from users.forms import LoginForm, CustomerUserForm, CustomerUserUpdateForm, ProfileForm, ProfileUpdateForm
+from users.models import CustomUser, Profile
 
 
 class Login(View):
+    def get(self, request):
+        login_form = LoginForm()
+        return render(request, 'register-login.html', {'login_form': login_form})
+
     def post(self, request):
-        form = LoginForm(request.POST)
-        if form.is_valid():
-            username = form.cleaned_data.get('username')
-            password = form.cleaned_data.get('password')
+        login_form = LoginForm(request.POST)
+        if login_form.is_valid():
+            username = login_form.cleaned_data.get('username')
+            password = login_form.cleaned_data.get('password')
             user = authenticate(username=username, password=password)
             if user is not None:
                 login(request, user)
                 messages.success(request, "Tizimga muvaffaqqiyatli kirdingiz")
-
-                # foydalanuvchi login qilib audintifikatsiyadan o'tganda kerakli joyga jo'natish
-                return redirect('home')
+                return redirect('update_profile')
             else:
-                # login qilolmasa  kerakli joyga jo'natish
                 messages.error(request, 'Bunday login yoki parol mavjud emas')
-                return render(request, 'footer.html', {'form': form})
+                return redirect('register')
         else:
-            # validatsiyadan o'tmasa  kerakli joyga jo'natish
             messages.error(request, 'Login yoki parolda xatolik mavjud')
-            return render(request, 'home', {'form': form})
+            return redirect('register')
 
 
 class Logout(View):
-    def post(self, request):
-        messages.success(request, 'Tizimdan chiqdingiz')
-        return render(request, 'index.html')
+    def get(self, request):
+        logout(request)
+        return redirect('register')
 
 
 class Register(View):
+    def get(self, request):
+        register_form = CustomerUserForm()
+        return render(request, 'register-login.html', {'register_form': register_form})
+
     def post(self, request):
-        form = CustomerUserForm(request.POST)
-        try:
-            if form.is_valid():
-                form.save()
-                # Register qilaolganda kerakli joyga jo'natish
+        register_form = CustomerUserForm(request.POST)
+        if register_form.is_valid():
+            password = register_form.cleaned_data['password']
+            confirm_password = register_form.cleaned_data['confirm_password']
+            if password == confirm_password:
+                user = register_form.save(commit=False)
+                user.set_password(password)
+                user.save()
+                first_name = user.first_name
+                last_name = user.last_name
+                phone_number = user.phone_number
+                email = user.email
+                is_agent = user.is_agent
+                telegram_username = user.telegram_username
+                new_profile = Profile.objects.create(user=user, first_name=first_name, last_name=last_name,
+                                                     phone_number=phone_number, email=email, is_agent=is_agent,
+                                                     telegram_username=telegram_username)
+                user.profile = new_profile
+                user.save()
                 messages.success(request, "Muvaffaqqiyatli ro'yxatdan o'tdingiz")
-                return redirect('home')
-        except:
-            pass
-        # Register qilolmasa  kerakli joyga jo'natish
-        messages.error(request, "Ro'yxatdan o'tishda xatolik yuzaga keldi. Iltimos, qayta urinib ko'ring.")
-        return render(request, 'register.html', {'form': form})
+                return HttpResponseRedirect(reverse('update_profile'))
+            else:
+                register_form.add_error('confirm_password', "Parolni tasdiqlashda xatolik yuzaga keldi")
+        else:
+            messages.error(request, "M'alumotlarni kiritishda xatolik mavjud")
+            return render(request, 'register-login.html', {'register_form': register_form})
 
 
-class CustomUserUpdate(View):
+class CustomUserUpdate(LoginRequiredMixin, View):
     def get(self, request):
-        form = CustomerUserUpdateForm(instance=request.user)
-        return render(request, 'update_user_form.html', {'form': form})
+        user = request.user
+        update_form = CustomerUserUpdateForm(instance=user)
+        return render(request, 'update-user.html', {'update_form': update_form})
 
     def post(self, request):
-        form = CustomerUserUpdateForm(request.POST, request.FILES, instance=request.user)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Muvaffaqqiyatli ma'lumotlarni yangiladingiz")
-            # Ma'lumotlari o'zgarganda kerakli joyga jo'natish
-            return redirect('home')
+        user = request.user
+        profile = CustomUser.objects.filter(id=user.id).first()
+        update_form = CustomerUserUpdateForm(request.POST, request.FILES, instance=profile)
+        if update_form.is_valid():
+            update_form.save()
+            messages.success(request, "Ma'lumotlar yangilandi.")
+            return redirect('update_profile')
         else:
             messages.error(request, "Ma'lumotlarni yangilashda xatolik yuzaga keldi. Qayta urinib ko'ring.")
-        return render(request, 'update_user_form.html', {'form': form})
+            return render(request, 'update-user.html', {'update_form': update_form})
 
 
-class Profile(View):
-    def post(self, request):
-        form = ProfileForm(request.POST, request.FILES, instance=request.user.profile)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Profile muvaffaqqiyatli yaratildi')
-            # Profile yaratilganda kerakli joyga jo'natish
-            return redirect('home')
-        else:
-            messages.error(request, "Profile yaratishda xatolik yuzaga keldi. Qayta urinib ko'ring.")
-        return render(request, 'home', {'form': form})
-
-
-class ProfileUpdate(View):
+class ProfileUpdateView(LoginRequiredMixin, View):
     def get(self, request):
-        form = ProfileUpdateForm(instance=request.user.profile)
-        return render(request, 'update_profile_form.html', {'form': form})
+        profile_form = ProfileForm(instance=request.user.profile)
+        username = request.user.username
+        return render(request, 'update_profile.html', {'profile_form': profile_form, 'username': username})
 
     def post(self, request):
-        form = ProfileUpdateForm(request.POST, request.FILES, instance=request.user.profile)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Muvaffaqqiyatli ma'lumotlarni yangiladingiz")
-            # Ma'lumotlari o'zgarganda kerakli joyga jo'natish
-            return redirect('home')
+        profile = request.user.profile
+        profile_form = ProfileUpdateForm(request.POST, request.FILES, instance=profile)
+        if profile_form.is_valid():
+            profile_form.save()
+            messages.success(request, "Profilingiz ma'lumotlari yangilandi!")
+            return redirect('register')
         else:
             messages.error(request, "Ma'lumotlarni yangilashda xatolik yuzaga keldi. Qayta urinib ko'ring.")
-        return render(request, 'update_profile_form.html', {'form': form})
+        return render(request, 'update_profile.html', {'profile_form': profile_form})

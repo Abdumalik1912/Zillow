@@ -1,29 +1,34 @@
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group, Permission
 
 
 class CustomUser(AbstractUser):
-    phone_number = models.CharField(max_length=13, blank=True, null=True)
+    profile = models.OneToOneField('Profile', on_delete=models.CASCADE, null=True, blank=True, related_name='profile')
+    username = models.CharField(max_length=100, unique=True)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True, blank=False, null=False)
+    phone_number = models.CharField(max_length=13, unique=True)
+    telegram_username = models.CharField(max_length=100, blank=True, null=True)
     is_agent = models.BooleanField(default=False)
-    telegram_username = models.CharField(max_length=50, blank=True, null=True)
-
-    groups = models.ManyToManyField(Group, verbose_name='groups', blank=True, related_name='custom_user_groups')
-    user_permissions = models.ManyToManyField(
-        Permission,
-        verbose_name='user permissions',
-        blank=True,
-        related_name='custom_user_permissions',
-        help_text='Specific permissions for this user.',
-    )
 
     def __str__(self):
-        return self.username
+        return f"{self.username} User"
 
 
 class Profile(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    profile_image = models.ImageField(default='media/default_profile.jpg', upload_to='media/profiles')
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='profile_user')
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=20)
+    email = models.EmailField()
+    is_agent = models.BooleanField(default=False)
+    telegram_username = models.CharField(max_length=100)
+    website = models.CharField(blank=True, null=True)
+    profile_image = models.ImageField(upload_to='profile_images/', default="media/default_profile.jpg",
+                                      blank=True, null=True)
+    objects = models.Manager()
 
     def __str__(self):
         return f'{self.user.username} Profile'
