@@ -19,22 +19,22 @@ class CustomerUserForm(forms.ModelForm):
 
 
 class CustomerUserUpdateForm(ModelForm):
-    # password = forms.CharField(widget=forms.PasswordInput())
-    # confirm_password = forms.CharField(widget=forms.PasswordInput(), label="Confirm Password")
-
     class Meta:
         model = CustomUser
         fields = ['username', 'email', 'first_name', 'last_name', 'phone_number', 'telegram_username', 'is_agent']
 
+
+class ChangePasswordForm(forms.Form):
+    old_password = forms.CharField(label='Old Password', widget=forms.PasswordInput)
+    new_password1 = forms.CharField(label='New Password', widget=forms.PasswordInput)
+    new_password2 = forms.CharField(label='Confirm New Password', widget=forms.PasswordInput)
+
     def clean(self):
         cleaned_data = super().clean()
-        password = cleaned_data.get("password")
-        confirm_password = cleaned_data.get("confirm_password")
-
-        if password and confirm_password and password != confirm_password:
-            raise forms.ValidationError("Parol va Tasdiqlash paroli mos kelmadi")
-
-        return cleaned_data
+        new_password1 = cleaned_data.get("new_password1")
+        new_password2 = cleaned_data.get("new_password2")
+        if new_password1 != new_password2:
+            raise forms.ValidationError("Yangi kiritilgan parollar mos kelmadi!")
 
 
 class ProfileForm(ModelForm):
@@ -55,4 +55,3 @@ class ProfileUpdateForm(ModelForm):
         model = Profile
         fields = ['first_name', 'last_name', 'profile_image', 'telegram_username',
                   'website', 'phone_number', 'email', 'is_agent']
-

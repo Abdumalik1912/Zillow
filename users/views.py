@@ -1,11 +1,12 @@
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views import View
 from django.contrib import messages
-from users.forms import LoginForm, CustomerUserForm, CustomerUserUpdateForm, ProfileForm, ProfileUpdateForm
+from users.forms import LoginForm, CustomerUserForm, CustomerUserUpdateForm, ProfileForm, ProfileUpdateForm, \
+    ChangePasswordForm
 from users.models import CustomUser, Profile
 
 
@@ -107,3 +108,29 @@ class ProfileUpdateView(LoginRequiredMixin, View):
         else:
             messages.error(request, "Ma'lumotlarni yangilashda xatolik yuzaga keldi. Qayta urinib ko'ring.")
         return render(request, 'update_profile.html', {'profile_form': profile_form})
+
+
+class ChangePasswordView(LoginRequiredMixin, View):
+    form_class = ChangePasswordForm
+    template_name = 'change-password.html'
+
+    def get(self, request):
+        form = self.form_class()
+        username = request.user.username
+        return render(request, self.template_name, {'form': form, 'username': username})
+
+    def post(self, request):
+        form = self.form_class(request.POST)
+        if form.is_valid():
+            user = request.user
+            old_password = form.cleaned_data['old_password']
+            new_password = form.cleaned_data['new_password1']
+            if user.check_password(old_password):
+                user.set_password(new_password)
+                user.save()
+                messages.success(request, "Parolingiz muvaffaqiyatli o'zgartirildi!")
+                update_session_auth_hash(request, user)
+                return redirect('register')
+            else:
+                form.add_error('old_password', "Eski parol noto'g'ri")
+        return render(request, self.template_name, {'form': form})
