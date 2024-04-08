@@ -24,7 +24,7 @@ class Login(View):
             if user is not None:
                 login(request, user)
                 messages.success(request, "Tizimga muvaffaqqiyatli kirdingiz")
-                return redirect('users:update_profile')
+                return redirect('listing_app:home')
             else:
                 messages.error(request, 'Bunday login yoki parol mavjud emas')
                 return redirect('users:register')
